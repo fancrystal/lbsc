@@ -71,7 +71,7 @@ export class Store {
   createUser(phone,name,password,methods,role='user'){
     must(typeof phone==='string'&&phone.trim().length>0&&phone.length<=64&&typeof name==='string'&&name.trim().length>0&&name.length<=100&&typeof password==='string'&&password.length>=6&&password.length<=128,'请填写有效账号、姓名和6至128位密码');
     const vals=[methods?.wechat,methods?.alipay,methods?.bank].map(x=>String(x||'').trim());
-    must(vals.every(v=>v.length<=256)&&(role==='admin'||vals.filter(Boolean).length>=2),'请填写至少两种有效收款方式');
+    must(vals.every(v=>v.length<=256)&&(role==='admin'||vals.some(Boolean)),'请填写至少一种有效收款方式');
     return Number(this.run('INSERT INTO users(phone,name,password,wechat,alipay,bank,role,created) VALUES(?,?,?,?,?,?,?,?)',phone.trim(),name.trim(),passwordHash(password),...vals.map(v=>this.encrypt(v)),role,now()).lastInsertRowid);
   }
   login(phone,password){const u=this.get('SELECT * FROM users WHERE phone=?',phone); must(u&&passwordMatches(password,u.password),'账号或密码错误');const token=randomBytes(32).toString('hex');this.run('INSERT INTO sessions VALUES(?,?,?)',sessionHash(token),u.id,Date.now()+7*86400000);return token}
@@ -86,7 +86,7 @@ export class Store {
   registrationGate(ip){const time=Date.now();this.run('DELETE FROM registration_attempts WHERE reset_at<=?',time);const item=this.get('SELECT count FROM registration_attempts WHERE ip=?',ip);if(item&&item.count>=10){const error=new Error('注册尝试过多，请稍后再试');error.status=429;throw error}this.run('INSERT INTO registration_attempts(ip,count,reset_at) VALUES(?,1,?) ON CONFLICT(ip) DO UPDATE SET count=count+1',ip,time+3600000)}
   session(token){return this.get('SELECT u.id,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?',sessionHash(token),Date.now())}
   logout(token){this.run('DELETE FROM sessions WHERE token=?',sessionHash(token))}
-  updateProfile(id,d){const vals=[d.wechat,d.alipay,d.bank].map(x=>String(x||'').trim());must(vals.filter(Boolean).length>=2,'至少填写两种收款方式');must(String(d.name||'').trim(),'姓名不能为空');this.run('UPDATE users SET name=?,wechat=?,alipay=?,bank=? WHERE id=?',d.name.trim(),...vals.map(v=>this.encrypt(v)),id)}
+  updateProfile(id,d){const vals=[d.wechat,d.alipay,d.bank].map(x=>String(x||'').trim());must(vals.every(v=>v.length<=256)&&vals.some(Boolean),'请填写至少一种有效收款方式');must(String(d.name||'').trim(),'姓名不能为空');this.run('UPDATE users SET name=?,wechat=?,alipay=?,bank=? WHERE id=?',d.name.trim(),...vals.map(v=>this.encrypt(v)),id)}
   changePassword(id,oldPass,newPass){const u=this.get('SELECT password FROM users WHERE id=?',id);must(u&&typeof oldPass==='string'&&passwordMatches(oldPass,u.password),'原密码错误');must(typeof newPass==='string'&&newPass.length>=6&&newPass.length<=128,'新密码需为6至128位');this.run('UPDATE users SET password=? WHERE id=?',passwordHash(newPass),id);this.run('DELETE FROM sessions WHERE user_id=?',id)}
   ledger(id,amount,frozen,reason,actor){this.run('INSERT INTO ledger(user_id,amount,frozen_delta,reason,actor,created) VALUES(?,?,?,?,?,?)',id,amount,frozen,reason,String(actor),now())}
   adjustPoints(id,amount,reason,actor){must(Number.isSafeInteger(Number(amount))&&Number(amount)!==0&&String(reason||'').trim(),'请输入整数和操作原因');amount=Number(amount);return this.tx(()=>{const u=this.user(id);must(u,'用户不存在');must(Number.isSafeInteger(u.points+amount),'积分余额超出上限');must(u.points+amount>=u.frozen,'可用积分不足');this.run('UPDATE users SET points=points+? WHERE id=?',amount,id);this.ledger(id,amount,0,reason,actor);this.audit(actor,'积分调整',{id,amount,reason})})}

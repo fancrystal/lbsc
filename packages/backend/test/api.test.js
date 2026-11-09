@@ -2,6 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, clientAddress } from '../src/server.js';
 
+test('注册和修改资料至少保留一种收款方式', async () => {
+ const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const root=`http://127.0.0.1:${server.address().port}/api/`;
+ const post=(path,data,token='')=>fetch(root+path,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(data)});
+ try {
+  for(const [i,field] of ['wechat','alipay','bank'].entries()){
+   const res=await post('register',{phone:'test'+i,name:'测试',password:'123456',[field]:'收款账号'});assert.equal(res.status,200);
+  }
+  assert.equal((await post('register',{phone:'empty',name:'测试',password:'123456',wechat:'  '})).status,400);
+  const token=(await (await post('login',{phone:'test0',password:'123456'})).json()).token;
+  assert.equal((await post('profile',{name:'测试',bank:'新银行卡'},token)).status,200);
+  let me=await (await fetch(root+'me',{headers:{authorization:'Bearer '+token}})).json();assert.equal(me.bank,'新银行卡');assert.equal(me.wechat,'');
+  assert.equal((await post('profile',{name:'测试',bank:'  '},token)).status,400);
+  assert.equal((await post('profile',{name:'测试',bank:'a'.repeat(257)},token)).status,400);
+  me=await (await fetch(root+'me',{headers:{authorization:'Bearer '+token}})).json();assert.equal(me.bank,'新银行卡');
+ } finally {await new Promise(r=>server.close(r));store.db.close()}
+});
+
 test('注册登录后可读取个人资料，匿名不能读取', async () => {
  const {server}=createServer(':memory:'); await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const root=`http://127.0.0.1:${server.address().port}`;
