@@ -2,6 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, clientAddress } from '../src/server.js';
 
+test('礼包图片可由网站直接访问',async()=>{const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));try{const res=await fetch(`http://127.0.0.1:${server.address().port}/gift-box.png`);assert.equal(res.status,200);assert.equal(res.headers.get('content-type'),'image/png');assert.ok((await res.arrayBuffer()).byteLength>1000)}finally{await new Promise(r=>server.close(r));store.db.close()}});
+
+test('后台大盘按北京时间统计每日预约与实时礼包库存，普通用户无权限',async()=>{
+ const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const root=`http://127.0.0.1:${server.address().port}/api/`;
+ try{
+  store.createUser('admin','管理员','123456',{},'admin');const a=store.createUser('a','甲','123456',{wechat:'a'}),b=store.createUser('b','乙','123456',{wechat:'b'});
+  const type=store.saveType({name:'一包',initial:300,cap:600,rate:1,enabled:1});store.adjustPoints(a,300,'测试','admin');store.adjustPoints(b,300,'测试','admin');store.issueGift(a,type,'admin');
+  store.reserve(a,type,'2026-11-08');store.reserve(b,type,'2026-11-08');store.match(type,'2026-11-08','test');store.finalize(type,'2026-11-08');
+  const admin=store.login('admin','123456'),user=store.login('a','123456');
+  const response=await fetch(root+'admin/dashboard?date=2026-11-08',{headers:{authorization:'Bearer '+admin}});assert.equal(response.status,200);const data=await response.json();
+  assert.equal(data.date,'2026-11-08');assert.equal(data.totals.registered_users,2);assert.equal(data.daily.reservation_users,2);assert.equal(data.daily.reservations,2);assert.equal(data.daily.match_orders,2);
+  assert.equal(data.types[0].reservations,2);assert.equal(data.types[0].active_gifts,1);assert.equal(data.types[0].locked_gifts,1);
+  assert.equal((await fetch(root+'admin/dashboard?date=2026-11-08',{headers:{authorization:'Bearer '+user}})).status,403);
+  assert.equal((await fetch(root+'admin/dashboard?date=2026-02-30',{headers:{authorization:'Bearer '+admin}})).status,400);
+ }finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
 test('积分互转校验可用余额并以请求号防止重复转账',async()=>{
  const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const root=`http://127.0.0.1:${server.address().port}/api/`;

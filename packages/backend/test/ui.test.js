@@ -3,6 +3,28 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
+test('企货销首页、礼包图片和手机号在用户页面展示',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
+ const fixtures={me:{id:1,name:'测试',phone:'13800000001',points:100,frozen:0},types:[{id:1,name:'一包',current_max:300,cap:600,rate:'1'}],gifts:[{id:1,name:'一包',value:300,locked:0}],orders:[{id:2,buyer_id:1,seller_id:2,seller_name:'卖家',seller_phone:'13900000002',status:'completed',type_name:'一包'}],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,console};
+ runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ assert.match(element.innerHTML,/企货销/);assert.match(element.innerHTML,/打造一个帮助数万商家销货的免佣金平台/);
+ await handlers.click({target:{closest:()=>({dataset:{tab:'预约'}})}});assert.match(element.innerHTML,/src="\/gift-box.png"/);
+ await handlers.click({target:{closest:()=>({dataset:{action:'gifts'}})}});assert.match(element.innerHTML,/src="\/gift-box.png"/);
+ await handlers.click({target:{closest:()=>({dataset:{action:'profile'}})}});assert.match(element.innerHTML,/手机号<input[^>]*value="13800000001"[^>]*readonly/);
+ await handlers.click({target:{closest:()=>({dataset:{action:'orders'}})}});assert.match(element.innerHTML,/卖方手机号：13900000002/);
+});
+
+test('后台大盘展示统计并支持按日期查询',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}},calls=[];
+ const dashboard={date:'2026-11-08',totals:{registered_users:2,eligible_users:1},daily:{new_users:1,reservation_users:2,reservations:2,match_orders:2,completed_matches:1,cancelled_matches:1,shop_orders:1},types:[{id:1,name:'一包',enabled:1,reservations:2,active_gifts:3,available_gifts:2,locked_gifts:1}]};
+ const fixtures={me:{role:'admin'},users:[],types:[],gifts:[],matches:[],products:[],'shop-orders':[],audit:[],schedule:{},dashboard};
+ const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async(url)=>{const key=url.slice(5).replace(/^admin\//,'');calls.push(key);return {ok:true,json:async()=>key.startsWith('dashboard?')?dashboard:fixtures[key]}},FormData:class{constructor(f){return Object.entries(f.values)}},alert:message=>{throw Error(message)},console};
+ runInNewContext(readFileSync('web/admin.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{tab:'大盘'}})}});assert.match(element.innerHTML,/当日预约人数/);assert.match(element.innerHTML,/当前持有包数/);assert.match(element.innerHTML,/一包/);
+ await handlers.submit({preventDefault(){},target:{dataset:{form:'dashboard'},values:{date:'2026-11-08'}}});assert.ok(calls.includes('dashboard?date=2026-11-08'));
+});
+
 test('后台货到通知可同时填写提货码和留言并发送',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}},sent=[];
  const fixtures={me:{role:'admin'},users:[],types:[],gifts:[],matches:[],products:[],'shop-orders':[{id:7,user_name:'用户',name:'商品',price:10,recipient:'甲',phone:'123',address:'地址',code:'原提货码',message:'原留言'}],audit:[],schedule:{current:{start:0,match:960,final:970,deadline:1320},pending:{start:0,match:960,final:970,deadline:1320}}};

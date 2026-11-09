@@ -25,9 +25,9 @@ export function createServer(path=resolve(root,'data/app.sqlite')) {
    const imagePath=p.match(/^\/media\/products\/(\d+)$/);
    if(imagePath&&method==='GET'){const product=store.get('SELECT cover FROM products WHERE id=? AND enabled=1',id(imagePath[1]));const match=product?.cover?.match(/^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/);if(!match){res.writeHead(404);return res.end('Not found')}const bytes=Buffer.from(match[2],'base64');res.writeHead(200,{'content-type':'image/'+match[1],'content-length':bytes.length,'cache-control':'no-store','x-content-type-options':'nosniff'});return res.end(bytes)}
    if(!p.startsWith('/api/')){
-    const files={'/':'web/index.html','/admin':'web/admin.html','/app.js':'web/app.js','/admin.js':'web/admin.js','/style.css':'web/style.css'};
+    const files={'/':'web/index.html','/admin':'web/admin.html','/app.js':'web/app.js','/admin.js':'web/admin.js','/style.css':'web/style.css','/gift-box.png':'web/gift-box.png'};
     if(!files[p]||method!=='GET'){res.writeHead(404);return res.end('Not found')}
-    const file=resolve(root,files[p]);const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8'}[extname(file)];res.writeHead(200,{'content-type':mime,'x-content-type-options':'nosniff'});return res.end(readFileSync(file));
+    const file=resolve(root,files[p]);const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png'}[extname(file)];res.writeHead(200,{'content-type':mime,'x-content-type-options':'nosniff'});return res.end(readFileSync(file));
    }
    const isRegistration=p==='/api/register'&&method==='POST',smallBody=isRegistration||(p==='/api/login'&&method==='POST');
    if(isRegistration)store.registrationGate(clientAddress(req,(process.env.TRUST_PROXY_IPS||'').split(',').map(s=>s.trim()).filter(Boolean)));
@@ -70,6 +70,7 @@ export function createServer(path=resolve(root,'data/app.sqlite')) {
    if(!p.startsWith('/api/admin/'))return json(res,404,{error:'接口不存在'});
    if(user.role!=='admin')return json(res,403,{error:'无权限'});
    const actor=String(user.id);
+   if(p==='/api/admin/dashboard'&&method==='GET')return json(res,200,store.dashboard(url.searchParams.get('date')||day()));
    if(p==='/api/admin/users'&&method==='GET')return json(res,200,store.all('SELECT id,phone,name,points,frozen,role,created FROM users ORDER BY id DESC'));
    if(p==='/api/admin/points'&&method==='POST'){store.adjustPoints(id(d.userId),Number(d.amount),d.reason,actor);return json(res,200,{ok:true})}
    if(p==='/api/admin/types'&&method==='GET')return json(res,200,store.types());
