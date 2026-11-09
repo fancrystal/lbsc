@@ -2,6 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, clientAddress } from '../src/server.js';
 
+test('积分互转校验可用余额并以请求号防止重复转账',async()=>{
+ const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const root=`http://127.0.0.1:${server.address().port}/api/`;
+ const post=(path,data,token='')=>fetch(root+path,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(data)});
+ try {
+  const a=store.createUser('13800000001','甲','123456',{wechat:'a'}),b=store.createUser('13800000002','乙','123456',{wechat:'b'});
+  store.adjustPoints(a,500,'测试','admin');store.run('UPDATE users SET frozen=100 WHERE id=?',a);
+  const token=store.login('13800000001','123456'),request={phone:'13800000002',amount:250,requestId:'request-id-0001'};
+  const result=await Promise.all([post('points-transfer',request,token),post('points-transfer',request,token)]);assert.deepEqual(result.map(r=>r.status),[200,200]);
+  assert.equal(store.user(a).points,250);assert.equal(store.user(a).frozen,100);assert.equal(store.user(b).points,250);
+  assert.equal(store.all("SELECT * FROM ledger WHERE user_id=? AND amount=-250",a).length,1);assert.equal(store.all("SELECT * FROM ledger WHERE user_id=? AND amount=250",b).length,1);
+  for(const [i,body] of [{phone:'13800000001',amount:1},{phone:'missing',amount:1},{phone:'13800000002',amount:151},{phone:'13800000002',amount:0},{phone:'13800000002',amount:1.5}].entries())assert.equal((await post('points-transfer',{...body,requestId:'invalid-request-'+i},token)).status,400);
+  assert.equal((await post('points-transfer',{...request,amount:1},token)).status,400);
+  assert.equal((await post('points-transfer',request)).status,401);
+  assert.equal(store.user(a).points,250);assert.equal(store.user(b).points,250);
+ }finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
 test('注册和修改资料至少保留一种收款方式', async () => {
  const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const root=`http://127.0.0.1:${server.address().port}/api/`;

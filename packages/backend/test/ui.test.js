@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
+test('个人页提供积分互转入口和填写手机号的表单',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
+ const fixtures={me:{id:1,name:'测试',phone:'a',points:100,frozen:30},types:[],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),crypto:{randomUUID:()=> 'test-request-0001'},setInterval:()=>0,console};
+ runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{tab:'我的'}})}});assert.match(element.innerHTML,/积分互转/);
+ await handlers.click({target:{closest:()=>({dataset:{action:'points-transfer'}})}});assert.match(element.innerHTML,/可用积分：70/);assert.match(element.innerHTML,/name="phone"/);assert.match(element.innerHTML,/name="amount"/);
+});
+
 test('付款凭证未选图片时提交按钮禁用',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
  const fixtures={me:{id:1,name:'测试',phone:'a',points:100,frozen:0},types:[],gifts:[],orders:[{id:1,buyer_id:1,seller_id:2,type_name:'测试',status:'unpaid'}],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};

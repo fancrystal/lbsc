@@ -20,6 +20,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS types(id INTEGER PRIMARY KEY, name TEXT NOT NULL, initial INTEGER NOT NULL, cap INTEGER NOT NULL, rate TEXT NOT NULL, pledge INTEGER NOT NULL, enabled INTEGER NOT NULL, pending_cap INTEGER, pending_rate TEXT, effective_day TEXT);
       CREATE TABLE IF NOT EXISTS gifts(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), type_id INTEGER NOT NULL REFERENCES types(id), value INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'active', locked INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, amount INTEGER NOT NULL, frozen_delta INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL, actor TEXT NOT NULL, created TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS point_transfers(id INTEGER PRIMARY KEY, sender_id INTEGER NOT NULL REFERENCES users(id), recipient_id INTEGER NOT NULL REFERENCES users(id), amount INTEGER NOT NULL, request_key TEXT NOT NULL, created TEXT NOT NULL, UNIQUE(sender_id,request_key));
       CREATE TABLE IF NOT EXISTS reservations(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), type_id INTEGER NOT NULL REFERENCES types(id), day TEXT NOT NULL, pledge INTEGER NOT NULL, gift_id INTEGER REFERENCES gifts(id), status TEXT NOT NULL DEFAULT 'waiting', UNIQUE(user_id,type_id,day));
       CREATE TABLE IF NOT EXISTS matches(id INTEGER PRIMARY KEY, day TEXT NOT NULL, type_id INTEGER NOT NULL REFERENCES types(id), buyer_id INTEGER NOT NULL REFERENCES users(id), seller_id INTEGER NOT NULL REFERENCES users(id), reservation_id INTEGER NOT NULL REFERENCES reservations(id), gift_id INTEGER REFERENCES gifts(id), price INTEGER, status TEXT NOT NULL, proof TEXT, appeal TEXT, resolution TEXT, created TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS matches_buyer_idx ON matches(buyer_id,id);
@@ -92,6 +93,22 @@ export class Store {
   changePassword(id,oldPass,newPass){const u=this.get('SELECT password FROM users WHERE id=?',id);must(u&&typeof oldPass==='string'&&passwordMatches(oldPass,u.password),'原密码错误');must(typeof newPass==='string'&&newPass.length>=6&&newPass.length<=128,'新密码需为6至128位');this.run('UPDATE users SET password=? WHERE id=?',passwordHash(newPass),id);this.run('DELETE FROM sessions WHERE user_id=?',id)}
   ledger(id,amount,frozen,reason,actor){this.run('INSERT INTO ledger(user_id,amount,frozen_delta,reason,actor,created) VALUES(?,?,?,?,?,?)',id,amount,frozen,reason,String(actor),now())}
   adjustPoints(id,amount,reason,actor){must(Number.isSafeInteger(Number(amount))&&Number(amount)!==0&&String(reason||'').trim(),'请输入整数和操作原因');amount=Number(amount);return this.tx(()=>{const u=this.user(id);must(u,'用户不存在');must(Number.isSafeInteger(u.points+amount),'积分余额超出上限');must(u.points+amount>=u.frozen,'可用积分不足');this.run('UPDATE users SET points=points+? WHERE id=?',amount,id);this.ledger(id,amount,0,reason,actor);this.audit(actor,'积分调整',{id,amount,reason})})}
+  transferPoints(senderId,phone,amount,requestId){
+    must(typeof phone==='string'&&phone.trim().length>0&&phone.length<=64,'请输入收款用户手机号');phone=phone.trim();
+    must((typeof amount==='number'||typeof amount==='string')&&String(amount).trim()!==''&&Number.isSafeInteger(Number(amount))&&Number(amount)>0,'请输入大于零的整数积分');amount=Number(amount);
+    must(typeof requestId==='string'&&/^[A-Za-z0-9_-]{12,80}$/.test(requestId),'转账请求编号无效');
+    return this.tx(()=>{
+      const sender=this.get('SELECT id,phone,points,frozen FROM users WHERE id=?',senderId);must(sender,'用户不存在');
+      const recipient=this.get("SELECT id,phone,points FROM users WHERE phone=? AND role='user'",phone);must(recipient,'收款用户不存在');must(recipient.id!==senderId,'不能转给自己');
+      const previous=this.get('SELECT * FROM point_transfers WHERE sender_id=? AND request_key=?',senderId,requestId);
+      if(previous){must(previous.recipient_id===recipient.id&&previous.amount===amount,'请求编号已用于其他转账');return Number(previous.id)}
+      must(sender.points-sender.frozen>=amount,'可用积分不足');must(Number.isSafeInteger(recipient.points+amount),'收款账户积分超出上限');
+      const transfer=Number(this.run('INSERT INTO point_transfers(sender_id,recipient_id,amount,request_key,created) VALUES(?,?,?,?,?)',senderId,recipient.id,amount,requestId,now()).lastInsertRowid);
+      this.run('UPDATE users SET points=points-? WHERE id=?',amount,senderId);this.run('UPDATE users SET points=points+? WHERE id=?',amount,recipient.id);
+      this.ledger(senderId,-amount,0,`积分转出至 ${recipient.phone}（单号 ${transfer}）`,senderId);this.ledger(recipient.id,amount,0,`积分转入来自 ${sender.phone}（单号 ${transfer}）`,senderId);
+      this.audit(senderId,'积分互转',{id:transfer,senderId,recipientId:recipient.id,amount});return transfer;
+    });
+  }
   saveType(d,id){must(String(d.name||'').trim()&&integer(d.initial)&&Number(d.initial)>0&&integer(d.cap)&&Number(d.cap)>=Number(d.initial)&&integer(d.pledge)&&Number(d.pledge)>0&&/^\d+(\.\d+)?$/.test(String(d.rate)),'礼包参数无效');const enabled=d.enabled?1:0;
     return this.tx(()=>{if(id){const t=this.get('SELECT * FROM types WHERE id=?',id);must(t,'类型不存在');const max=this.get("SELECT MAX(value) v FROM gifts WHERE type_id=? AND status='active'",id).v||0;must(Number(d.cap)>=max,'新上限低于现有礼包价值');this.run('UPDATE types SET name=?,initial=?,pledge=?,enabled=?,pending_cap=?,pending_rate=?,effective_day=? WHERE id=?',d.name,Number(d.initial),Number(d.pledge),enabled,Number(d.cap),String(d.rate),new Date(Date.parse(day()+'T00:00:00Z')+86400000).toISOString().slice(0,10),id);this.audit('admin','修改礼包类型',{id,...d});return Number(id)}const result=this.run('INSERT INTO types(name,initial,cap,rate,pledge,enabled) VALUES(?,?,?,?,?,?)',d.name,Number(d.initial),Number(d.cap),String(d.rate),Number(d.pledge),enabled);this.audit('admin','新增礼包类型',d);return Number(result.lastInsertRowid)})}
   types(){return this.all('SELECT * FROM types ORDER BY id DESC')}
