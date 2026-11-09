@@ -24,6 +24,16 @@ test('重置礼包类型会释放旧预约质押、清理旧礼包交易并创�
  }finally{s.db.close()}
 });
 
+test('礼包类型按创建顺序从低金额商品1包到高金额商品5包展示',()=>{
+ const s=new Store(':memory:');
+ try{
+  s.saveType({name:'商品1包',initial:500,cap:1000,rate:1,pledge:100,enabled:1});
+  s.saveType({name:'商品2包',initial:1000,cap:2000,rate:1,pledge:200,enabled:1});
+  s.saveType({name:'商品3包',initial:2000,cap:4000,rate:1,pledge:300,enabled:1});
+  assert.deepEqual(s.types().map(t=>t.name),['商品1包','商品2包','商品3包']);
+ }finally{s.db.close()}
+});
+
 test('预约使用后台设置的固定质押，礼包价值变化不调整已冻结额度',()=>{
  const s=new Store(':memory:');
  try{
