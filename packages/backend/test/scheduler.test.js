@@ -25,7 +25,7 @@ test('停机跨过截止时间时订单进入人工处理，不能自动扣质�
  s.reserve(a,t,'2026-11-08');s.reserve(b,t,'2026-11-08');
  tick(s,'2026-11-08',970);assert.equal(s.ordersFor(b).find(x=>x.buyer_id===b).status,'unpaid');
  tick(s,'2026-11-09',0);tick(s,'2026-11-09',0);
- assert.equal(s.user(b).points,400);assert.equal(s.user(b).frozen,303);assert.equal(s.ordersFor(b).find(x=>x.buyer_id===b).status,'dispute');assert.equal(s.giftsFor(a)[0].value,306);
+ assert.equal(s.user(b).points,400);assert.equal(s.user(b).frozen,100);assert.equal(s.ordersFor(b).find(x=>x.buyer_id===b).status,'dispute');assert.equal(s.giftsFor(a)[0].value,306);
  const order=s.ordersFor(b).find(x=>x.buyer_id===b);s.resolve(order.id,'cancel','系统故障','admin');assert.equal(s.user(b).frozen,0);assert.equal(s.giftsFor(a)[0].locked,0);assert.equal(s.user(b).points,400);
 });
 
@@ -38,7 +38,7 @@ test('错过整个匹配窗口时取消预约并释放礼包和质押',()=>{
 test('服务正常运行时按时扣除超时买方质押',()=>{
  const s=new Store(':memory:');const a=s.createUser('a','A','password1',{wechat:'a',alipay:'a'}),b=s.createUser('b','B','password1',{wechat:'b',alipay:'b'});
  const t=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:100,enabled:1});s.adjustPoints(a,300,'初始','admin');s.adjustPoints(b,300,'初始','admin');s.issueGift(a,t,'admin');s.reserve(a,t,'2026-11-08');s.reserve(b,t,'2026-11-08');
- tick(s,'2026-11-08',970);tick(s,'2026-11-08',1319);tick(s,'2026-11-08',1320);assert.equal(s.user(b).points,0);assert.equal(s.user(b).frozen,0);assert.equal(s.ordersFor(b).find(x=>x.buyer_id===b).status,'expired');
+ tick(s,'2026-11-08',970);tick(s,'2026-11-08',1319);tick(s,'2026-11-08',1320);assert.equal(s.user(b).points,200);assert.equal(s.user(b).frozen,0);assert.equal(s.ordersFor(b).find(x=>x.buyer_id===b).status,'expired');
 });
 
 test('后台设置的新时间从次日生效并用于匹配',()=>{

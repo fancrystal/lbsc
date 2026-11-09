@@ -2,34 +2,49 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../src/store.js';
 
-test('预约冻结可交易礼包最高价值，固定匹配后退回差额',()=>{
+test('预约使用后台设置的固定质押，礼包价值变化不调整已冻结额度',()=>{
+ const s=new Store(':memory:');
+ try{
+  const a=s.createUser('a','甲','123456',{wechat:'a'}),b=s.createUser('b','乙','123456',{wechat:'b'});
+  const type=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:100,enabled:1});
+  s.adjustPoints(a,200,'test','admin');s.adjustPoints(b,200,'test','admin');const gift=s.issueGift(a,type,'admin');s.run('UPDATE gifts SET value=450 WHERE id=?',gift);
+  assert.throws(()=>s.reserve(a,type,'2026-11-08',450),/金额已变化/);
+  s.reserve(a,type,'2026-11-08',100);s.reserve(b,type,'2026-11-08',100);assert.equal(s.user(b).frozen,100);
+  s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:150,enabled:1},type);
+  s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');assert.equal(s.user(b).frozen,100);
+  const order=s.ordersFor(b).find(o=>o.buyer_id===b);assert.equal(order.price,450);s.expire('2026-11-08');assert.equal(s.user(b).points,100);assert.equal(s.user(b).frozen,0);
+  const c=s.createUser('c','丙','123456',{wechat:'c'});s.adjustPoints(c,200,'test','admin');s.reserve(c,type,'2026-11-09',150);assert.equal(s.user(c).frozen,150);
+ }finally{s.db.close()}
+});
+
+test('旧价值模式预约固定匹配后仍按原规则退回差额',()=>{
  const s=new Store(':memory:');
  try {
   const a=s.createUser('a','甲','123456',{wechat:'a'}),b=s.createUser('b','乙','123456',{wechat:'b'});
-  const type=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:1,enabled:1});
+  const type=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:450,enabled:1});
   s.adjustPoints(a,600,'测试','admin');s.adjustPoints(b,600,'测试','admin');
   const cheap=s.issueGift(a,type,'admin'),expensive=s.issueGift(b,type,'admin');s.run('UPDATE gifts SET value=450 WHERE id=?',expensive);
   assert.equal(s.types().find(x=>x.id===type).current_max,450);
   assert.throws(()=>s.reserve(a,type,'2026-11-08',300),/金额已变化/);assert.equal(s.user(a).frozen,0);
   s.reserve(a,type,'2026-11-08');s.reserve(b,type,'2026-11-08');assert.equal(s.user(a).frozen,450);assert.equal(s.user(b).frozen,450);
-  s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');
+  s.run("UPDATE reservations SET pledge_mode='value' WHERE type_id=?",type);s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');
   const buyer=s.ordersFor(b).find(o=>o.buyer_id===b);assert.equal(buyer.gift_id,cheap);assert.equal(buyer.price,300);
   assert.equal(s.user(b).frozen,300);assert.equal(s.user(a).frozen,450);
   s.submitProof(b,buyer.id,'截图');s.confirm(a,buyer.id);assert.equal(s.user(b).frozen,0);
  }finally{s.db.close()}
 });
 
-test('礼包类型不再需要单独设置预约质押',()=>{
- const s=new Store(':memory:');try{const type=s.saveType({name:'礼包',initial:300,cap:600,rate:1,enabled:1});assert.equal(s.types().find(x=>x.id===type).current_max,300)}finally{s.db.close()}
+test('礼包类型必须单独设置预约质押',()=>{
+ const s=new Store(':memory:');try{assert.throws(()=>s.saveType({name:'礼包',initial:300,cap:600,rate:1,enabled:1}),/礼包参数/)}finally{s.db.close()}
 });
 
-test('预约后更高价值礼包出现时质押不足则取消对应订单并退回质押',()=>{
+test('旧价值模式预约遇到更高价值且不足补足时取消订单',()=>{
  const s=new Store(':memory:');
  try {
   const a=s.createUser('a','甲','123456',{wechat:'a'}),b=s.createUser('b','乙','123456',{wechat:'b'});
-  const type=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:1,enabled:1});s.adjustPoints(a,300,'测试','admin');s.adjustPoints(b,300,'测试','admin');
+  const type=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:300,enabled:1});s.adjustPoints(a,300,'测试','admin');s.adjustPoints(b,300,'测试','admin');
   const gift=s.issueGift(a,type,'admin');s.reserve(a,type,'2026-11-08');s.reserve(b,type,'2026-11-08');s.run('UPDATE gifts SET value=400 WHERE id=?',gift);
-  s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');const order=s.ordersFor(b).find(o=>o.buyer_id===b);
+  s.run("UPDATE reservations SET pledge_mode='value' WHERE type_id=?",type);s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');const order=s.ordersFor(b).find(o=>o.buyer_id===b);
   assert.equal(order.status,'cancelled');assert.equal(s.user(b).frozen,0);assert.equal(s.user(b).points,300);assert.equal(s.giftsFor(a)[0].locked,0);
  }finally{s.db.close()}
 });
@@ -80,7 +95,7 @@ test('超时扣除买方冻结质押、卖方礼包解锁且允许申诉', () =>
   const g=s.issueGift(a,t,'admin');s.reserve(a,t,'2026-11-08');s.reserve(b,t,'2026-11-08');
   s.match(t,'2026-11-08','admin');s.finalize(t,'2026-11-08');s.expire('2026-11-08');
   const order=s.ordersFor(b).find(o=>o.buyer_id===b);
-  assert.equal(order.status,'expired');assert.equal(s.user(b).points,0);assert.equal(s.user(b).frozen,0);
+  assert.equal(order.status,'expired');assert.equal(s.user(b).points,200);assert.equal(s.user(b).frozen,0);
   assert.equal(s.giftsFor(a)[0].locked,0);s.appeal(b,order.id,'已付款');
   assert.equal(s.ordersFor(b).find(o=>o.id===order.id).status,'appeal');
   assert.equal(s.redeem(a,g),300);

@@ -15,7 +15,7 @@ test('接口贯通注册、预约、交易、积分购买和提货通知',async(
   const type=(await req('admin/type',{name:'现金1包',initial:300,cap:600,rate:1,pledge:100,enabled:1},admin)).id;
   for(const userId of [a,b])await req('admin/points',{userId,amount:500,reason:'测试'},admin);
   await req('admin/issue',{userId:a,typeId:type},admin);
-  await req('reserve',{typeId:type,expectedPledge:300},tokenA);await req('reserve',{typeId:type,expectedPledge:300},tokenB);
+  await req('reserve',{typeId:type,expectedPledge:100},tokenA);await req('reserve',{typeId:type,expectedPledge:100},tokenB);
   t.mock.timers.setTime(Date.parse('2026-11-08T08:00:00Z'));await req('reservations',null,tokenA);
   t.mock.timers.setTime(Date.parse('2026-11-08T08:10:00Z'));const order=(await req('orders',null,tokenB)).find(o=>o.buyer_id===b);assert.equal(order.price,300);
   const missingProof=await fetch(root+'/api/proof',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+tokenB},body:JSON.stringify({id:order.id,proof:''})});assert.equal(missingProof.status,400);

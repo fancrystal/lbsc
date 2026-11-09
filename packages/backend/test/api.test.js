@@ -9,7 +9,7 @@ test('后台大盘按北京时间统计每日预约与实时礼包库存，普�
  const root=`http://127.0.0.1:${server.address().port}/api/`;
  try{
   store.createUser('admin','管理员','123456',{},'admin');const a=store.createUser('a','甲','123456',{wechat:'a'}),b=store.createUser('b','乙','123456',{wechat:'b'});
-  const type=store.saveType({name:'一包',initial:300,cap:600,rate:1,enabled:1});store.adjustPoints(a,300,'测试','admin');store.adjustPoints(b,300,'测试','admin');store.issueGift(a,type,'admin');
+  const type=store.saveType({name:'一包',initial:300,cap:600,rate:1,pledge:100,enabled:1});store.adjustPoints(a,300,'测试','admin');store.adjustPoints(b,300,'测试','admin');store.issueGift(a,type,'admin');
   store.reserve(a,type,'2026-11-08');store.reserve(b,type,'2026-11-08');store.match(type,'2026-11-08','test');store.finalize(type,'2026-11-08');
   const admin=store.login('admin','123456'),user=store.login('a','123456');
   const response=await fetch(root+'admin/dashboard?date=2026-11-08',{headers:{authorization:'Bearer '+admin}});assert.equal(response.status,200);const data=await response.json();
