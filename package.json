@@ -1,0 +1,12 @@
+{
+    "private":  true,
+    "name":  "jgxm",
+    "engines":  {
+                    "node":  "\u003e=24"
+                },
+    "type":  "module",
+    "scripts":  {
+                    "start":  "node packages/backend/src/server.js",
+                    "test":  "node --test packages/backend/test/*.test.js"
+                }
+}

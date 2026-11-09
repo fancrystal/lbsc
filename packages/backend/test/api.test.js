@@ -1,0 +1,99 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer, clientAddress } from '../src/server.js';
+
+test('注册登录后可读取个人资料，匿名不能读取', async () => {
+ const {server}=createServer(':memory:'); await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const root=`http://127.0.0.1:${server.address().port}`;
+ try {
+  let res=await fetch(root+'/api/me'); assert.equal(res.status,401);
+  res=await fetch(root+'/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:'13800000000',name:'测试',password:'password1',wechat:'w',alipay:'a'})});assert.equal(res.status,200);
+  res=await fetch(root+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:'13800000000',password:'password1'})});const {token}=await res.json();assert.ok(token);
+  res=await fetch(root+'/api/me',{headers:{authorization:`Bearer ${token}`}});assert.equal((await res.json()).name,'测试');
+ } finally {await new Promise(r=>server.close(r))}
+});
+
+test('只有明确配置的可信代理才能提供客户端地址',()=>{
+ const req={socket:{remoteAddress:'127.0.0.1'},headers:{'x-forwarded-for':'198.51.100.7, 10.0.0.1'}};
+ assert.equal(clientAddress(req,[]),'127.0.0.1');assert.equal(clientAddress(req,['127.0.0.1','10.0.0.1']),'198.51.100.7');
+ const fake={socket:{remoteAddress:'203.0.113.8'},headers:{'x-forwarded-for':'198.51.100.7'}};assert.equal(clientAddress(fake,['127.0.0.1']),'203.0.113.8');
+});
+
+test('健康检查不需要登录且只返回运行状态',async()=>{
+ const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ try{const r=await fetch(`http://127.0.0.1:${server.address().port}/healthz`);assert.equal(r.status,200);assert.deepEqual(await r.json(),{status:'ok'})}
+ finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
+test('定时任务失败时健康检查返回不可用',async()=>{
+ const {server,store}=createServer(':memory:');store.grow=()=>{throw Error('database error')};await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ try{const r=await fetch(`http://127.0.0.1:${server.address().port}/healthz`);assert.equal(r.status,503);assert.deepEqual(await r.json(),{status:'unavailable'})}
+ finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
+test('连续错误登录后暂时限制再次尝试', async () => {
+ const {server,store}=createServer(':memory:');store.createUser('13800000000','用户','password1',{wechat:'w',alipay:'a'});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));const root=`http://127.0.0.1:${server.address().port}`;
+ try {for(let i=0;i<5;i++){const r=await fetch(root+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:'13800000000',password:'wrong'})});assert.equal(r.status,400)}
+ const blocked=await fetch(root+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:'13800000000',password:'password1'})});assert.equal(blocked.status,429);
+ }finally{await new Promise(r=>server.close(r))}
+});
+
+test('同一来源短期内重复注册会被限制',async()=>{
+ const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));const root=`http://127.0.0.1:${server.address().port}`;
+ try{for(let i=0;i<10;i++){const r=await fetch(root+'/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:'a'+i,name:'测试',password:'bad',wechat:'w',alipay:'a'})});assert.equal(r.status,400)}
+ const limited=await fetch(root+'/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:'new',name:'测试',password:'password1',wechat:'w',alipay:'a'})});assert.equal(limited.status,429);
+ }finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
+test('注册接口拒绝过大的请求体',async()=>{
+ const {server,store}=createServer(':memory:');await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ try{const r=await fetch(`http://127.0.0.1:${server.address().port}/api/register`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'x'.repeat(20000)})});assert.equal(r.status,413)}finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
+test('地址接口隔离用户并支持新增和设置默认地址',async()=>{
+ const {server,store}=createServer(':memory:');store.createUser('a','A','password1',{wechat:'a',alipay:'a'});store.createUser('b','B','password1',{wechat:'b',alipay:'b'});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));const root=`http://127.0.0.1:${server.address().port}`;
+ const post=(p,d,t='')=>fetch(root+'/api/'+p,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+t},body:JSON.stringify(d)});
+ try{const a=(await (await post('login',{phone:'a',password:'password1'})).json()).token,b=(await (await post('login',{phone:'b',password:'password1'})).json()).token;
+ const created=await(await post('addresses/add',{name:'甲',phone:'123',address:'地址'},a)).json();assert.ok(created.id);
+ assert.equal((await post('addresses/default',{id:created.id},b)).status,400);
+ const addresses=await(await fetch(root+'/api/addresses',{headers:{authorization:'Bearer '+a}})).json();assert.equal(addresses.length,1);assert.equal(addresses[0].is_default,1);
+ }finally{await new Promise(r=>server.close(r))}
+});
+
+test('商品摘要分页不携带图片原文，封面和详情按需读取',async()=>{
+ const {server,store}=createServer(':memory:');store.createUser('admin','管理员','password1',{},'admin');store.createUser('a','A','password1',{wechat:'w',alipay:'a'});
+ const image='data:image/png;base64,iVBORw0KGgo=';let last;for(let i=0;i<21;i++)last=store.saveProduct({name:'商品'+i,price:10,stock:1,enabled:1,cover:image,images:[image],detail:'详情'});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));const root=`http://127.0.0.1:${server.address().port}`;
+ try{const token=store.login('a','password1'),headers={authorization:'Bearer '+token};const list=await(await fetch(root+'/api/products',{headers})).json();assert.equal(list.length,20);assert.equal(list[0].cover,`/media/products/${last}`);assert.equal(list[0].images,undefined);
+ const more=await(await fetch(root+'/api/products?before='+list.at(-1).id,{headers})).json();assert.equal(more.length,1);
+ const cover=await fetch(root+list[0].cover);assert.equal(cover.status,200);assert.equal(cover.headers.get('content-type'),'image/png');
+ const details=await(await fetch(root+'/api/product?id='+last,{headers})).json();assert.equal(details.detail,'详情');assert.deepEqual(JSON.parse(details.images),[image]);
+ const adminToken=store.login('admin','password1'),adminHeaders={authorization:'Bearer '+adminToken};const adminList=await(await fetch(root+'/api/admin/products',{headers:adminHeaders})).json();assert.equal(adminList[0].images,undefined);assert.equal(adminList[0].cover,undefined);
+ const adminDetails=await(await fetch(root+'/api/admin/product?id='+last,{headers:adminHeaders})).json();assert.equal(adminDetails.cover,image);assert.equal((await fetch(root+'/api/admin/product?id='+last,{headers})).status,403);
+ }finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
+test('商品排序分页不会漏掉不同排序值的商品',async()=>{
+ const {server,store}=createServer(':memory:');store.createUser('a','A','password1',{wechat:'w',alipay:'a'});for(let i=0;i<35;i++)store.saveProduct({name:'商品'+i,price:1,stock:1,enabled:1,sort:i%3});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));try{const token=store.login('a','password1'),headers={authorization:'Bearer '+token},root=`http://127.0.0.1:${server.address().port}`;
+ const first=await(await fetch(root+'/api/products',{headers})).json(),last=first.at(-1);const second=await(await fetch(root+`/api/products?before=${last.id}&sort=${last.sort}`,{headers})).json();assert.equal(first.length,20);assert.equal(second.length,15);assert.equal(new Set([...first,...second].map(x=>x.id)).size,35);
+ }finally{await new Promise(r=>server.close(r));store.db.close()}
+});
+
+test('普通用户不能操作后台，管理员可发放礼包和积分', async () => {
+ const {server,store}=createServer(':memory:');store.createUser('admin','管理员','password1',{},'admin');
+ await new Promise(r=>server.listen(0,'127.0.0.1',r)); const root=`http://127.0.0.1:${server.address().port}`;
+ const post=(p,d,token='')=>fetch(root+'/api/'+p,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(d)});
+ try {
+  const user=await (await post('register',{phone:'13800000000',name:'用户',password:'password1',wechat:'w',alipay:'a'})).json();
+  const userToken=(await (await post('login',{phone:'13800000000',password:'password1'})).json()).token;
+  assert.equal((await post('admin/points',{userId:user.id,amount:100,reason:'测试'},userToken)).status,403);
+  const adminToken=(await (await post('login',{phone:'admin',password:'password1'})).json()).token;
+  const t=await (await post('admin/type',{name:'礼包',initial:300,cap:600,rate:1,pledge:100,enabled:1},adminToken)).json();
+  assert.equal((await post('admin/points',{userId:user.id,amount:100,reason:'测试'},adminToken)).status,200);
+  assert.equal((await post('admin/issue',{userId:user.id,typeId:t.id},adminToken)).status,200);
+  const gifts=await (await fetch(root+'/api/gifts',{headers:{authorization:'Bearer '+userToken}})).json();assert.equal(gifts[0].value,300);
+ }finally {await new Promise(r=>server.close(r))}
+});

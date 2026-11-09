@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-bookworm-slim}
+    ports:
+      - "127.0.0.1:${HOST_PORT:-3101}:3100"
+    environment:
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在环境变量中设置管理员密码}
+      APP_DATA_KEY: ${APP_DATA_KEY:-}
+      TRUST_PROXY_IPS: ${TRUST_PROXY_IPS:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

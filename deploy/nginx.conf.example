@@ -1,0 +1,35 @@
+# 替换域名和证书路径后，按服务器实际 Nginx 配置加载。
+# 不要直接以此示例启动；需要先获得有效 HTTPS 证书。
+# 以下 zone 指令应放在 Nginx 的 http 上下文中，实际阈值需按流量调整。
+limit_req_zone $binary_remote_addr zone=jgxm_requests:10m rate=20r/s;
+limit_conn_zone $binary_remote_addr zone=jgxm_connections:10m;
+server {
+    listen 80;
+    server_name example.invalid;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name example.invalid;
+    ssl_certificate /etc/ssl/example/fullchain.pem;
+    ssl_certificate_key /etc/ssl/example/privkey.pem;
+    client_max_body_size 8m;
+    client_header_timeout 15s;
+    client_body_timeout 15s;
+    limit_req zone=jgxm_requests burst=40 nodelay;
+    limit_req_status 429;
+    limit_conn jgxm_connections 30;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    location / {
+        proxy_pass http://127.0.0.1:3101;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # 覆盖客户端传来的同名头，防止直接伪造来源。
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
