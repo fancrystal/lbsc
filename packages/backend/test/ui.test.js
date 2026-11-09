@@ -3,6 +3,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
+test('后台货到通知可同时填写提货码和留言并发送',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}},sent=[];
+ const fixtures={me:{role:'admin'},users:[],types:[],gifts:[],matches:[],products:[],'shop-orders':[{id:7,user_name:'用户',name:'商品',price:10,recipient:'甲',phone:'123',address:'地址',code:'原提货码',message:'原留言'}],audit:[],schedule:{current:{start:0,match:960,final:970,deadline:1320},pending:{start:0,match:960,final:970,deadline:1320}}};
+ const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'admin-token'},fetch:async(url,opt)=>{const key=url.slice(5).replace(/^admin\//,'');if(key==='notice'){sent.push(JSON.parse(opt.body));return {ok:true,json:async()=>({ok:true})}}return {ok:true,json:async()=>fixtures[key]}},FormData:class {constructor(f){return Object.entries(f.values)}},confirm:()=>true,alert:message=>{throw Error(message)},console};
+ runInNewContext(readFileSync('web/admin.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{tab:'商城订单'}})}});
+ await handlers.click({target:{closest:()=>({dataset:{action:'notice',id:'7'}})}});
+ assert.match(element.innerHTML,/data-form="notice"/);assert.match(element.innerHTML,/name="code"[^>]*value="原提货码"/);assert.match(element.innerHTML,/name="message"[^>]*>原留言<\/textarea>/);
+ await handlers.submit({preventDefault(){},target:{dataset:{form:'notice'},values:{id:'7',code:'新码',message:'请领取'}}});
+ assert.deepEqual(sent,[{id:'7',code:'新码',message:'请领取'}]);
+});
+
 test('预约页显示当前最高金额及冻结金额',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
  const fixtures={me:{id:1,name:'测试',phone:'a',points:600,frozen:0},types:[{id:1,name:'现金1包',initial:300,cap:600,current_max:450,rate:'1'}],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};

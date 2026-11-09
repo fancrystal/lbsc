@@ -30,7 +30,7 @@ test('接口贯通注册、预约、交易、积分购买和提货通知',async(
   await req('addresses/add',{name:'乙',phone:'13900000000',address:'收货地址'},tokenB);
   const product=(await req('admin/product',{name:'蔬菜月卡',price:100,stock:1,enabled:1},admin)).id;
   const purchase=(await req('purchase',{id:product},tokenB)).id;await req('admin/notice',{id:purchase,code:'123456',message:'请领取'},admin);
-  let shop=await req('shop-orders',null,tokenB);assert.equal(shop[0].unread,1);assert.equal(shop[0].code,'123456');await req('read-shop-order',{id:purchase},tokenB);
+  let shop=await req('shop-orders',null,tokenB);assert.equal(shop[0].unread,1);assert.equal(shop[0].code,'123456');assert.equal(shop[0].message,'请领取');await req('read-shop-order',{id:purchase},tokenB);
   shop=await req('shop-orders',null,tokenB);assert.equal(shop[0].unread,0);assert.equal((await req('me',null,tokenB)).points,700);
  } finally {await new Promise(r=>server.close(r));store.db.close()}
 });
