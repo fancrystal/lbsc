@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import { Store } from '../src/store.js';
 import { tick } from '../src/server.js';
 
+test('转账截图上传满48小时后由定时任务清理，订单不受影响',t=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-08T08:10:00Z')});
+ const s=new Store(':memory:');
+ try {
+  const a=s.createUser('a','A','password1',{wechat:'a'}),b=s.createUser('b','B','password1',{wechat:'b'});
+  const type=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:1,enabled:1});
+  s.adjustPoints(a,1,'测试','admin');s.adjustPoints(b,1,'测试','admin');s.issueGift(a,type,'admin');
+  s.reserve(a,type,'2026-11-08');s.reserve(b,type,'2026-11-08');s.match(type,'2026-11-08','admin');s.finalize(type,'2026-11-08');
+  const order=s.ordersFor(b).find(o=>o.buyer_id===b);s.submitProof(b,order.id,'截图');s.confirm(a,order.id);
+  t.mock.timers.setTime(Date.parse('2026-11-10T08:09:59Z'));tick(s);assert.equal(s.proofFor(a,order.id),'截图');
+  t.mock.timers.setTime(Date.parse('2026-11-10T08:10:00Z'));tick(s);assert.throws(()=>s.proofFor(a,order.id));
+  assert.equal(s.ordersFor(b).find(o=>o.id===order.id).status,'completed');
+ } finally {s.db.close()}
+});
+
 test('停机跨过截止时间时订单进入人工处理，不能自动扣质押',()=>{
  const s=new Store(':memory:');const a=s.createUser('a','A','password1',{wechat:'a',alipay:'a'}),b=s.createUser('b','B','password1',{wechat:'b',alipay:'b'});
  const t=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:100,enabled:1});s.adjustPoints(a,100,'初始','admin');s.adjustPoints(b,100,'初始','admin');

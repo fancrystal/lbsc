@@ -95,6 +95,7 @@ export function createServer(path=resolve(root,'data/app.sqlite')) {
 }
 
 export function tick(store,current=day(),currentMinutes=minutes()){
+ store.cleanupProofs();
  const clock=Date.parse(current+'T00:00:00Z')+currentMinutes*60000;
  const heartbeat=store.get("SELECT value FROM settings WHERE key='heartbeat'");
  const previous=heartbeat?Number(heartbeat.value):null;

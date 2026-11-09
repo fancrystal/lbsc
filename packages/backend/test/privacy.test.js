@@ -6,6 +6,21 @@ import { join } from 'node:path';
 import { Store } from '../src/store.js';
 import { DatabaseSync } from 'node:sqlite';
 
+test('旧版截图迁移后保留48小时且重启不重置计时',t=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-08T08:10:00Z')});
+ const dir=mkdtempSync(join(tmpdir(),'jgxm-'));const path=join(dir,'db.sqlite');let s;
+ try {
+  s=new Store(path);const a=s.createUser('a','A','123456',{wechat:'a'}),b=s.createUser('b','B','123456',{wechat:'b'});
+  const type=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:1,enabled:1});s.adjustPoints(a,1,'test','admin');s.adjustPoints(b,1,'test','admin');s.issueGift(a,type,'admin');
+  s.reserve(a,type,'2026-11-08');s.reserve(b,type,'2026-11-08');s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');
+  const order=s.ordersFor(b).find(o=>o.buyer_id===b);s.submitProof(b,order.id,'旧截图');
+  s.db.exec('DROP INDEX matches_proof_retention_idx; ALTER TABLE matches DROP COLUMN proof_uploaded_at');s.db.close();s=null;
+  t.mock.timers.setTime(Date.parse('2026-11-09T00:00:00Z'));s=new Store(path);assert.equal(s.proofFor(a,order.id),'旧截图');s.db.close();s=null;
+  t.mock.timers.setTime(Date.parse('2026-11-10T00:00:00Z'));s=new Store(path);s.cleanupProofs();assert.equal(s.proofFor(a,order.id),'旧截图');
+  t.mock.timers.setTime(Date.parse('2026-11-11T00:00:00Z'));s.cleanupProofs();assert.throws(()=>s.proofFor(a,order.id));
+ } finally {try{s?.db.close()}catch{}rmSync(dir,{recursive:true,force:true})}
+});
+
 test('收款资料和凭证加密保存，重启后授权用户仍可查看',()=>{
  const dir=mkdtempSync(join(tmpdir(),'jgxm-'));const path=join(dir,'db.sqlite');let s;
  try{s=new Store(path);const a=s.createUser('a','A','password1',{wechat:'secret-account',alipay:'secret-alipay'}),b=s.createUser('b','B','password1',{wechat:'b',alipay:'b'});

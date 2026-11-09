@@ -18,6 +18,7 @@ test('接口贯通注册、预约、交易、积分购买和提货通知',async(
   await req('reserve',{typeId:type},tokenA);await req('reserve',{typeId:type},tokenB);
   t.mock.timers.setTime(Date.parse('2026-11-08T08:00:00Z'));await req('reservations',null,tokenA);
   t.mock.timers.setTime(Date.parse('2026-11-08T08:10:00Z'));const order=(await req('orders',null,tokenB)).find(o=>o.buyer_id===b);assert.equal(order.price,300);
+  const missingProof=await fetch(root+'/api/proof',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+tokenB},body:JSON.stringify({id:order.id,proof:''})});assert.equal(missingProof.status,400);
   await req('proof',{id:order.id,proof:'data:image/png;base64,iVBORw0KGgo='},tokenB);
   const listed=(await req('orders',null,tokenA)).find(o=>o.id===order.id);assert.equal(listed.has_proof,1);assert.equal(listed.proof,undefined);
   assert.equal((await req('proof?id='+order.id,null,tokenA)).proof,'data:image/png;base64,iVBORw0KGgo=');
