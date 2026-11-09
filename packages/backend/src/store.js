@@ -112,6 +112,23 @@ export class Store {
   }
   saveType(d,id){must(String(d.name||'').trim()&&integer(d.initial)&&Number(d.initial)>0&&integer(d.cap)&&Number(d.cap)>=Number(d.initial)&&integer(d.pledge)&&Number(d.pledge)>0&&/^\d+(\.\d+)?$/.test(String(d.rate)),'礼包参数无效');const enabled=d.enabled?1:0;
     return this.tx(()=>{if(id){const t=this.get('SELECT * FROM types WHERE id=?',id);must(t,'类型不存在');const max=this.get("SELECT MAX(value) v FROM gifts WHERE type_id=? AND status='active'",id).v||0;must(Number(d.cap)>=max,'新上限低于现有礼包价值');this.run('UPDATE types SET name=?,initial=?,pledge=?,enabled=?,pending_cap=?,pending_rate=?,effective_day=? WHERE id=?',d.name,Number(d.initial),Number(d.pledge),enabled,Number(d.cap),String(d.rate),new Date(Date.parse(day()+'T00:00:00Z')+86400000).toISOString().slice(0,10),id);this.audit('admin','修改礼包类型',{id,...d});return Number(id)}const result=this.run('INSERT INTO types(name,initial,cap,rate,pledge,enabled) VALUES(?,?,?,?,?,?)',d.name,Number(d.initial),Number(d.cap),String(d.rate),Number(d.pledge),enabled);this.audit('admin','新增礼包类型',d);return Number(result.lastInsertRowid)})}
+  replaceGiftTypes(records,actor){
+    must(Array.isArray(records)&&records.length>0,'礼包类型不能为空');
+    const normalized=records.map(d=>({name:String(d.name||'').trim(),initial:Number(d.initial),cap:Number(d.cap),rate:String(d.rate),pledge:Number(d.pledge),enabled:d.enabled?1:0}));
+    must(normalized.every(d=>d.name&&integer(d.initial)&&d.initial>0&&integer(d.cap)&&d.cap>=d.initial&&integer(d.pledge)&&d.pledge>0&&/^\d+(\.\d+)?$/.test(d.rate)),'礼包参数无效');
+    must(new Set(normalized.map(d=>d.name)).size===normalized.length,'礼包类型名称不能重复');
+    return this.tx(()=>{
+      const old={types:this.get('SELECT COUNT(*) count FROM types').count,gifts:this.get('SELECT COUNT(*) count FROM gifts').count,reservations:this.get('SELECT COUNT(*) count FROM reservations').count,matches:this.get('SELECT COUNT(*) count FROM matches').count};
+      for(const reservation of this.all('SELECT * FROM reservations'))this.release(reservation);
+      this.run('DELETE FROM daily_values WHERE gift_id IN (SELECT id FROM gifts)');
+      this.run('DELETE FROM match_contacts WHERE match_id IN (SELECT id FROM matches)');
+      this.run('DELETE FROM matches');this.run('DELETE FROM reservations');this.run('DELETE FROM gifts');this.run('DELETE FROM types');
+      this.run("DELETE FROM jobs WHERE kind LIKE 'match:%' OR kind LIKE 'final:%'");
+      const ids=normalized.map(d=>Number(this.run('INSERT INTO types(name,initial,cap,rate,pledge,enabled) VALUES(?,?,?,?,?,?)',d.name,d.initial,d.cap,d.rate,d.pledge,d.enabled).lastInsertRowid));
+      this.audit(actor,'重置礼包类型',{old,types:normalized});
+      return this.all(`SELECT * FROM types WHERE id IN (${ids.map(()=>'?').join(',')}) ORDER BY id`,...ids);
+    });
+  }
   types(){return this.all("SELECT t.*,COALESCE((SELECT MAX(g.value) FROM gifts g WHERE g.type_id=t.id AND g.status='active' AND (g.locked=0 OR EXISTS (SELECT 1 FROM reservations r WHERE r.gift_id=g.id AND r.day=? AND r.status='waiting'))),t.initial) current_max FROM types t ORDER BY t.id DESC",day())}
   dashboard(date){
     must(typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&!Number.isNaN(Date.parse(date+'T00:00:00Z'))&&new Date(date+'T00:00:00Z').toISOString().slice(0,10)===date,'请选择有效日期');

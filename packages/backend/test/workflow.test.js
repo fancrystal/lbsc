@@ -2,6 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../src/store.js';
 
+test('重置礼包类型会释放旧预约质押、清理旧礼包交易并创建新的商品礼包',()=>{
+ const s=new Store(':memory:');
+ try{
+  const seller=s.createUser('seller','卖家','123456',{wechat:'seller'}),buyer=s.createUser('buyer','买家','123456',{wechat:'buyer'});
+  const old=s.saveType({name:'旧礼包',initial:300,cap:600,rate:1,pledge:100,enabled:1});
+  s.adjustPoints(seller,100,'测试','admin');s.adjustPoints(buyer,100,'测试','admin');s.issueGift(seller,old,'admin');
+  s.reserve(seller,old,'2026-11-08');s.reserve(buyer,old,'2026-11-08');
+  const types=s.replaceGiftTypes([
+   {name:'商品1包',initial:500,cap:1000,rate:1,pledge:100,enabled:1},
+   {name:'商品2包',initial:1000,cap:2000,rate:1,pledge:200,enabled:1},
+   {name:'商品3包',initial:2000,cap:4000,rate:1,pledge:300,enabled:1},
+   {name:'商品4包',initial:4000,cap:8000,rate:1,pledge:400,enabled:1},
+   {name:'商品5包',initial:8000,cap:16000,rate:1,pledge:500,enabled:1}
+  ],'admin');
+  assert.deepEqual(types.map(t=>[t.name,t.initial,t.cap,t.pledge,t.enabled]),[
+   ['商品1包',500,1000,100,1],['商品2包',1000,2000,200,1],['商品3包',2000,4000,300,1],['商品4包',4000,8000,400,1],['商品5包',8000,16000,500,1]
+  ]);
+  assert.equal(s.get('SELECT COUNT(*) count FROM gifts').count,0);assert.equal(s.get('SELECT COUNT(*) count FROM reservations').count,0);assert.equal(s.get('SELECT COUNT(*) count FROM matches').count,0);
+  assert.equal(s.user(seller).frozen,0);assert.equal(s.user(buyer).frozen,0);
+ }finally{s.db.close()}
+});
+
 test('预约使用后台设置的固定质押，礼包价值变化不调整已冻结额度',()=>{
  const s=new Store(':memory:');
  try{
@@ -73,7 +95,7 @@ test('预约冻结、双方匹配和确认收款原子完成礼包转移', () =>
   const s = new Store(':memory:');
   const a = s.createUser('a', 'A', 'password1', {wechat:'a',alipay:'a'});
   const b = s.createUser('b', 'B', 'password1', {wechat:'b',alipay:'b'});
-  const t = s.saveType({name:'现金1包',initial:300,cap:600,rate:1,pledge:100,enabled:1});
+  const t = s.saveType({name:'商品1包',initial:300,cap:600,rate:1,pledge:100,enabled:1});
   s.adjustPoints(a, 300, '初始', 'admin'); s.adjustPoints(b, 300, '初始', 'admin');
   const g = s.issueGift(a,t,'admin');
   s.reserve(a,t,'2026-11-08'); s.reserve(b,t,'2026-11-08');

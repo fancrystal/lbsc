@@ -47,7 +47,7 @@ test('后台货到通知可同时填写提货码和留言并发送',async()=>{
 
 test('预约页显示当前最高金额及冻结金额',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
- const fixtures={me:{id:1,name:'测试',phone:'a',points:600,frozen:0},types:[{id:1,name:'现金1包',initial:300,cap:600,current_max:450,pledge:125,rate:'1'}],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const fixtures={me:{id:1,name:'测试',phone:'a',points:600,frozen:0},types:[{id:1,name:'商品1包',initial:300,cap:600,current_max:450,pledge:125,rate:'1'}],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
  const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,console};
  runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
  await handlers.click({target:{closest:()=>({dataset:{tab:'预约'}})}});
