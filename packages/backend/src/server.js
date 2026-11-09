@@ -46,7 +46,7 @@ export function createServer(path=resolve(root,'data/app.sqlite')) {
    if(p==='/api/gifts'&&method==='GET')return json(res,200,store.giftsFor(user.id));
    if(p==='/api/redeem'&&method==='POST')return json(res,200,{points:store.redeem(user.id,id(d.id))});
    if(p==='/api/schedule'&&method==='GET')return json(res,200,store.schedule());
-   if(p==='/api/reserve'&&method==='POST'){const schedule=store.schedule();if(minutes()<schedule.start||minutes()>=schedule.match)throw new Error('当前不在预约时间');return json(res,200,{id:store.reserve(user.id,id(d.typeId),day())})}
+   if(p==='/api/reserve'&&method==='POST'){const schedule=store.schedule();if(minutes()<schedule.start||minutes()>=schedule.match)throw new Error('当前不在预约时间');if(!Number.isSafeInteger(d.expectedPledge)||d.expectedPledge<1)throw new Error('请刷新后确认预约金额');return json(res,200,{id:store.reserve(user.id,id(d.typeId),day(),d.expectedPledge)})}
    if(p==='/api/reservations'&&method==='GET')return json(res,200,store.all('SELECT r.*,t.name FROM reservations r JOIN types t ON t.id=r.type_id WHERE r.user_id=? ORDER BY r.id DESC',user.id));
    if(p==='/api/orders'&&method==='GET')return json(res,200,store.ordersFor(user.id,url.searchParams.has('before')?id(url.searchParams.get('before')):undefined));
    if(p==='/api/proof'&&method==='GET')return json(res,200,{proof:store.proofFor(user.id,id(url.searchParams.get('id')),user.role==='admin')});

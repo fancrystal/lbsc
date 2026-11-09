@@ -11,7 +11,7 @@ test('旧版截图迁移后保留48小时且重启不重置计时',t=>{
  const dir=mkdtempSync(join(tmpdir(),'jgxm-'));const path=join(dir,'db.sqlite');let s;
  try {
   s=new Store(path);const a=s.createUser('a','A','123456',{wechat:'a'}),b=s.createUser('b','B','123456',{wechat:'b'});
-  const type=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:1,enabled:1});s.adjustPoints(a,1,'test','admin');s.adjustPoints(b,1,'test','admin');s.issueGift(a,type,'admin');
+  const type=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:1,enabled:1});s.adjustPoints(a,300,'test','admin');s.adjustPoints(b,300,'test','admin');s.issueGift(a,type,'admin');
   s.reserve(a,type,'2026-11-08');s.reserve(b,type,'2026-11-08');s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');
   const order=s.ordersFor(b).find(o=>o.buyer_id===b);s.submitProof(b,order.id,'旧截图');
   s.db.exec('DROP INDEX matches_proof_retention_idx; ALTER TABLE matches DROP COLUMN proof_uploaded_at');s.db.close();s=null;
@@ -24,7 +24,7 @@ test('旧版截图迁移后保留48小时且重启不重置计时',t=>{
 test('收款资料和凭证加密保存，重启后授权用户仍可查看',()=>{
  const dir=mkdtempSync(join(tmpdir(),'jgxm-'));const path=join(dir,'db.sqlite');let s;
  try{s=new Store(path);const a=s.createUser('a','A','password1',{wechat:'secret-account',alipay:'secret-alipay'}),b=s.createUser('b','B','password1',{wechat:'b',alipay:'b'});
- const t=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:1,enabled:1});s.adjustPoints(a,1,'初始','admin');s.adjustPoints(b,1,'初始','admin');s.issueGift(a,t,'admin');s.reserve(a,t,'2026-11-08');s.reserve(b,t,'2026-11-08');s.match(t,'2026-11-08','admin');s.finalize(t,'2026-11-08');const o=s.ordersFor(b).find(x=>x.buyer_id===b);s.submitProof(b,o.id,'secret-proof');
+ const t=s.saveType({name:'包',initial:300,cap:600,rate:1,pledge:1,enabled:1});s.adjustPoints(a,300,'初始','admin');s.adjustPoints(b,300,'初始','admin');s.issueGift(a,t,'admin');s.reserve(a,t,'2026-11-08');s.reserve(b,t,'2026-11-08');s.match(t,'2026-11-08','admin');s.finalize(t,'2026-11-08');const o=s.ordersFor(b).find(x=>x.buyer_id===b);s.submitProof(b,o.id,'secret-proof');
  assert.notEqual(s.get('SELECT wechat FROM users WHERE id=?',a).wechat,'secret-account');assert.notEqual(s.get('SELECT proof FROM matches WHERE id=?',o.id).proof,'secret-proof');s.db.close();
  s=new Store(path);assert.equal(s.ordersFor(b).find(x=>x.id===o.id).wechat,'secret-account');assert.equal(s.ordersFor(a).find(x=>x.id===o.id).has_proof,1);assert.equal(s.ordersFor(a).find(x=>x.id===o.id).proof,undefined);assert.equal(s.proofFor(a,o.id),'secret-proof');assert.throws(()=>s.proofFor(999,o.id));s.db.close();
  }finally{try{s?.db.close()}catch{}rmSync(dir,{recursive:true,force:true})}

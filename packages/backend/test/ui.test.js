@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
+test('预约页显示当前最高金额及冻结金额',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
+ const fixtures={me:{id:1,name:'测试',phone:'a',points:600,frozen:0},types:[{id:1,name:'现金1包',initial:300,cap:600,current_max:450,rate:'1'}],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,console};
+ runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{tab:'预约'}})}});
+ assert.match(element.innerHTML,/当前最高金额 450/);assert.match(element.innerHTML,/预约冻结 450 积分/);assert.match(element.innerHTML,/data-pledge="450"/);
+});
+
 test('个人页提供积分互转入口和填写手机号的表单',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
  const fixtures={me:{id:1,name:'测试',phone:'a',points:100,frozen:30},types:[],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
