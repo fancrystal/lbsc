@@ -45,6 +45,15 @@ test('冻结质押账目修正以当前有效预约为准',()=>{
  }finally{s.db.close()}
 });
 
+test('不同礼包类型预约分别冻结各自设置的质押额度',()=>{
+ const s=new Store(':memory:');
+ try{
+  const user=s.createUser('user','用户','123456',{wechat:'user'}),first=s.saveType({name:'商品1包',initial:500,cap:1000,rate:1,pledge:100,enabled:1}),second=s.saveType({name:'商品2包',initial:1000,cap:2000,rate:1,pledge:200,enabled:1});
+  s.adjustPoints(user,300,'测试','admin');s.reserve(user,first,'2026-11-08',100);s.reserve(user,second,'2026-11-08',200);
+  assert.equal(s.user(user).frozen,300);assert.deepEqual(s.all('SELECT type_id,pledge FROM reservations WHERE user_id=? ORDER BY type_id',user).map(r=>[r.type_id,r.pledge]),[[first,100],[second,200]]);
+ }finally{s.db.close()}
+});
+
 test('礼包类型按创建顺序从低金额商品1包到高金额商品5包展示',()=>{
  const s=new Store(':memory:');
  try{
