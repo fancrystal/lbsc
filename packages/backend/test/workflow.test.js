@@ -56,7 +56,7 @@ test('旧价值模式预约固定匹配后仍按原规则退回差额',()=>{
   const type=s.saveType({name:'礼包',initial:300,cap:600,rate:1,pledge:450,enabled:1});
   s.adjustPoints(a,600,'测试','admin');s.adjustPoints(b,600,'测试','admin');
   const cheap=s.issueGift(a,type,'admin'),expensive=s.issueGift(b,type,'admin');s.run('UPDATE gifts SET value=450 WHERE id=?',expensive);
-  assert.equal(s.types().find(x=>x.id===type).current_max,450);
+  assert.equal(s.types().find(x=>x.id===type).current_value,450);
   assert.throws(()=>s.reserve(a,type,'2026-11-08',300),/金额已变化/);assert.equal(s.user(a).frozen,0);
   s.reserve(a,type,'2026-11-08');s.reserve(b,type,'2026-11-08');assert.equal(s.user(a).frozen,450);assert.equal(s.user(b).frozen,450);
   s.run("UPDATE reservations SET pledge_mode='value' WHERE type_id=?",type);s.match(type,'2026-11-08','test');s.finalize(type,'2026-11-08');

@@ -129,7 +129,7 @@ export class Store {
       return this.all(`SELECT * FROM types WHERE id IN (${ids.map(()=>'?').join(',')}) ORDER BY id`,...ids);
     });
   }
-  types(){return this.all("SELECT t.*,COALESCE((SELECT MAX(g.value) FROM gifts g WHERE g.type_id=t.id AND g.status='active' AND (g.locked=0 OR EXISTS (SELECT 1 FROM reservations r WHERE r.gift_id=g.id AND r.day=? AND r.status='waiting'))),t.initial) current_max FROM types t ORDER BY t.id ASC",day())}
+  types(){return this.all("SELECT t.*,COALESCE((SELECT MAX(g.value) FROM gifts g WHERE g.type_id=t.id AND g.status='active' AND (g.locked=0 OR EXISTS (SELECT 1 FROM reservations r WHERE r.gift_id=g.id AND r.day=? AND r.status='waiting'))),t.initial) current_value FROM types t ORDER BY t.id ASC",day())}
   dashboard(date){
     must(typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&!Number.isNaN(Date.parse(date+'T00:00:00Z'))&&new Date(date+'T00:00:00Z').toISOString().slice(0,10)===date,'请选择有效日期');
     const activeTypes=this.types().filter(t=>t.enabled),min=activeTypes.length?Math.min(...activeTypes.map(t=>t.pledge)):null;

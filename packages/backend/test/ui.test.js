@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 test('后台礼包类型可填写固定质押额度',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
- const fixtures={me:{role:'admin'},users:[],types:[{id:1,name:'一包',initial:300,cap:600,rate:'1',current_max:450,pledge:125,enabled:1}],gifts:[],matches:[],products:[],'shop-orders':[],audit:[],schedule:{},dashboard:{}};
+ const fixtures={me:{role:'admin'},users:[],types:[{id:1,name:'一包',initial:300,cap:600,rate:'1',current_value:450,pledge:125,enabled:1}],gifts:[],matches:[],products:[],'shop-orders':[],audit:[],schedule:{},dashboard:{}};
  const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5).replace(/^admin\//,'')]}),alert:message=>{throw Error(message)},console};
  runInNewContext(readFileSync('web/admin.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
  await handlers.click({target:{closest:()=>({dataset:{tab:'礼包类型'}})}});assert.match(element.innerHTML,/预约质押额度（积分）/);assert.match(element.innerHTML,/name="pledge"/);assert.match(element.innerHTML,/固定质押/);
@@ -13,7 +13,7 @@ test('后台礼包类型可填写固定质押额度',async()=>{
 
 test('企货销首页、礼包图片和手机号在用户页面展示',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
- const fixtures={me:{id:1,name:'测试',phone:'13800000001',points:100,frozen:0},types:[{id:1,name:'一包',current_max:300,cap:600,rate:'1'}],gifts:[{id:1,name:'一包',value:300,locked:0}],orders:[{id:2,buyer_id:1,seller_id:2,seller_name:'卖家',seller_phone:'13900000002',status:'completed',type_name:'一包'}],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const fixtures={me:{id:1,name:'测试',phone:'13800000001',points:100,frozen:0},types:[{id:1,name:'一包',current_value:300,cap:600,rate:'1'}],gifts:[{id:1,name:'一包',value:300,locked:0}],orders:[{id:2,buyer_id:1,seller_id:2,seller_name:'卖家',seller_phone:'13900000002',status:'completed',type_name:'一包'}],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
  const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,console};
  runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
  assert.match(element.innerHTML,/企货销/);assert.match(element.innerHTML,/打造一个帮助数万商家销货的免佣金平台/);
@@ -45,13 +45,13 @@ test('后台货到通知可同时填写提货码和留言并发送',async()=>{
  assert.deepEqual(sent,[{id:'7',code:'新码',message:'请领取'}]);
 });
 
-test('预约页显示当前最高金额及冻结金额',async()=>{
+test('预约页显示当前金额及冻结金额',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
- const fixtures={me:{id:1,name:'测试',phone:'a',points:600,frozen:0},types:[{id:1,name:'商品1包',initial:300,cap:600,current_max:450,pledge:125,rate:'1'}],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const fixtures={me:{id:1,name:'测试',phone:'a',points:600,frozen:0},types:[{id:1,name:'商品1包',initial:300,cap:600,current_value:450,pledge:125,rate:'1'}],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
  const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,console};
  runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
  await handlers.click({target:{closest:()=>({dataset:{tab:'预约'}})}});
- assert.match(element.innerHTML,/当前最高金额 450/);assert.match(element.innerHTML,/预约冻结 125 积分/);assert.match(element.innerHTML,/data-pledge="125"/);
+ assert.match(element.innerHTML,/当前金额 450/);assert.doesNotMatch(element.innerHTML,/最\u9ad8/);assert.match(element.innerHTML,/预约冻结 125 积分/);assert.match(element.innerHTML,/data-pledge="125"/);
 });
 
 test('个人页提供积分互转入口和填写手机号的表单',async()=>{
