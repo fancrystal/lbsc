@@ -24,6 +24,27 @@ test('重置礼包类型会释放旧预约质押、清理旧礼包交易并创�
  }finally{s.db.close()}
 });
 
+test('重置礼包类型不会重复退回已取消预约的质押',()=>{
+ const s=new Store(':memory:');
+ try{
+  const user=s.createUser('user','用户','123456',{wechat:'user'}),type=s.saveType({name:'旧礼包',initial:300,cap:600,rate:1,pledge:100,enabled:1});
+  s.adjustPoints(user,100,'测试','admin');s.reserve(user,type,'2026-11-08');s.match(type,'2026-11-08','admin');s.finalize(type,'2026-11-08');
+  assert.equal(s.user(user).frozen,0);
+  s.replaceGiftTypes([{name:'商品1包',initial:500,cap:1000,rate:1,pledge:100,enabled:1}],'admin');
+  assert.equal(s.user(user).frozen,0);
+ }finally{s.db.close()}
+});
+
+test('冻结质押账目修正以当前有效预约为准',()=>{
+ const s=new Store(':memory:');
+ try{
+  const user=s.createUser('user','用户','123456',{wechat:'user'}),type=s.saveType({name:'商品1包',initial:500,cap:1000,rate:1,pledge:100,enabled:1});
+  s.adjustPoints(user,100,'测试','admin');s.reserve(user,type,'2026-11-08');s.run('UPDATE users SET frozen=-100 WHERE id=?',user);
+  s.reconcileFrozen('admin');
+  assert.equal(s.user(user).frozen,100);assert.equal(s.get("SELECT frozen_delta FROM ledger WHERE reason='冻结质押账目修正' ORDER BY id DESC LIMIT 1").frozen_delta,200);
+ }finally{s.db.close()}
+});
+
 test('礼包类型按创建顺序从低金额商品1包到高金额商品5包展示',()=>{
  const s=new Store(':memory:');
  try{

@@ -8,6 +8,7 @@
     "scripts":  {
                     "start":  "node packages/backend/src/server.js",
                     "test":  "node --test packages/backend/test/*.test.js",
-                    "reset-gift-types":  "node packages/backend/src/reset-gift-types.js"
+                    "reset-gift-types":  "node packages/backend/src/reset-gift-types.js",
+                    "reconcile-frozen":  "node packages/backend/src/reconcile-frozen.js"
                 }
 }
