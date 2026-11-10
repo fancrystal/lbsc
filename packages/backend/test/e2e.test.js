@@ -13,8 +13,8 @@ test('接口贯通注册、预约、交易、积分购买和提货通知',async(
   const b=(await req('register',{phone:'b',name:'乙',password:'password1',wechat:'wb',alipay:'ab'})).id;
   const tokenA=(await req('login',{phone:'a',password:'password1'})).token,tokenB=(await req('login',{phone:'b',password:'password1'})).token;
   const type=(await req('admin/type',{name:'商品1包',initial:300,cap:600,rate:1,pledge:100,enabled:1},admin)).id;
-  for(const userId of [a,b])await req('admin/points',{userId,amount:500,reason:'测试'},admin);
-  await req('admin/issue',{phone:'a',typeId:type},admin);
+  for(const userRef of ['a',String(b)])await req('admin/points',{userRef,amount:500,reason:'测试'},admin);
+  await req('admin/issue',{userRef:'a',typeId:type},admin);
   await req('reserve',{typeId:type,expectedPledge:100},tokenA);await req('reserve',{typeId:type,expectedPledge:100},tokenB);
   t.mock.timers.setTime(Date.parse('2026-11-08T08:00:00Z'));await req('reservations',null,tokenA);
   t.mock.timers.setTime(Date.parse('2026-11-08T08:10:00Z'));const order=(await req('orders',null,tokenB)).find(o=>o.buyer_id===b);assert.equal(order.price,300);

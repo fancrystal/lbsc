@@ -72,11 +72,11 @@ export function createServer(path=resolve(root,'data/app.sqlite')) {
    const actor=String(user.id);
    if(p==='/api/admin/dashboard'&&method==='GET')return json(res,200,store.dashboard(url.searchParams.get('date')||day()));
    if(p==='/api/admin/users'&&method==='GET')return json(res,200,store.all('SELECT id,phone,name,points,frozen,role,created FROM users ORDER BY id DESC'));
-   if(p==='/api/admin/points'&&method==='POST'){store.adjustPoints(id(d.userId),Number(d.amount),d.reason,actor);return json(res,200,{ok:true})}
+   if(p==='/api/admin/points'&&method==='POST'){store.adjustPointsByRef(d.userRef,Number(d.amount),d.reason,actor);return json(res,200,{ok:true})}
    if(p==='/api/admin/types'&&method==='GET')return json(res,200,store.types());
    if(p==='/api/admin/type'&&method==='POST')return json(res,200,{id:store.saveType(d,d.id? id(d.id):null)});
    if(p==='/api/admin/gifts'&&method==='GET')return json(res,200,store.all("SELECT g.*,u.name user_name,t.name type_name FROM gifts g JOIN users u ON u.id=g.user_id JOIN types t ON t.id=g.type_id ORDER BY g.id DESC LIMIT 500"));
-   if(p==='/api/admin/issue'&&method==='POST')return json(res,200,{id:store.issueGiftByPhone(d.phone,id(d.typeId),actor)});
+   if(p==='/api/admin/issue'&&method==='POST')return json(res,200,{id:store.issueGiftByRef(d.userRef,id(d.typeId),actor)});
    if(p==='/api/admin/revoke'&&method==='POST'){store.revokeGift(id(d.id),actor,d.reason);return json(res,200,{ok:true})}
    if(p==='/api/admin/schedule'&&method==='GET')return json(res,200,{current:store.schedule(),pending:store.schedule(new Date(Date.parse(day()+'T00:00:00Z')+86400000).toISOString().slice(0,10))});
    if(p==='/api/admin/schedule'&&method==='POST')return json(res,200,{effective:store.setSchedule({start:Number(d.start),match:Number(d.match),final:Number(d.final),deadline:Number(d.deadline)},actor)});

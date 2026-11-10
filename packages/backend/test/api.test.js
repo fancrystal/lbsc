@@ -136,7 +136,7 @@ test('商品排序分页不会漏掉不同排序值的商品',async()=>{
  }finally{await new Promise(r=>server.close(r));store.db.close()}
 });
 
-test('普通用户不能操作后台，管理员可按用户手机号发放礼包和积分', async () => {
+test('普通用户不能操作后台，管理员可按用户手机号或 ID 发放礼包和积分', async () => {
  const {server,store}=createServer(':memory:');store.createUser('admin','管理员','password1',{},'admin');
  await new Promise(r=>server.listen(0,'127.0.0.1',r)); const root=`http://127.0.0.1:${server.address().port}`;
  const post=(p,d,token='')=>fetch(root+'/api/'+p,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(d)});
@@ -146,8 +146,10 @@ test('普通用户不能操作后台，管理员可按用户手机号发放礼�
   assert.equal((await post('admin/points',{userId:user.id,amount:100,reason:'测试'},userToken)).status,403);
   const adminToken=(await (await post('login',{phone:'admin',password:'password1'})).json()).token;
   const t=await (await post('admin/type',{name:'礼包',initial:300,cap:600,rate:1,pledge:100,enabled:1},adminToken)).json();
-  assert.equal((await post('admin/points',{userId:user.id,amount:100,reason:'测试'},adminToken)).status,200);
-  assert.equal((await post('admin/issue',{phone:'13800000000',typeId:t.id},adminToken)).status,200);
-  const gifts=await (await fetch(root+'/api/gifts',{headers:{authorization:'Bearer '+userToken}})).json();assert.equal(gifts[0].value,300);
+  assert.equal((await post('admin/points',{userRef:'13800000000',amount:100,reason:'测试'},adminToken)).status,200);
+  assert.equal((await post('admin/points',{userRef:String(user.id),amount:100,reason:'测试'},adminToken)).status,200);
+  assert.equal((await post('admin/issue',{userRef:'13800000000',typeId:t.id},adminToken)).status,200);
+  assert.equal((await post('admin/issue',{userRef:String(user.id),typeId:t.id},adminToken)).status,200);
+  const gifts=await (await fetch(root+'/api/gifts',{headers:{authorization:'Bearer '+userToken}})).json();assert.equal(gifts.length,2);assert.equal(gifts[0].value,300);
  }finally {await new Promise(r=>server.close(r))}
 });
