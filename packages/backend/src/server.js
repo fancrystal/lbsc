@@ -76,7 +76,7 @@ export function createServer(path=resolve(root,'data/app.sqlite')) {
    if(p==='/api/admin/types'&&method==='GET')return json(res,200,store.types());
    if(p==='/api/admin/type'&&method==='POST')return json(res,200,{id:store.saveType(d,d.id? id(d.id):null)});
    if(p==='/api/admin/gifts'&&method==='GET')return json(res,200,store.all("SELECT g.*,u.name user_name,t.name type_name FROM gifts g JOIN users u ON u.id=g.user_id JOIN types t ON t.id=g.type_id ORDER BY g.id DESC LIMIT 500"));
-   if(p==='/api/admin/issue'&&method==='POST')return json(res,200,{id:store.issueGift(id(d.userId),id(d.typeId),actor)});
+   if(p==='/api/admin/issue'&&method==='POST')return json(res,200,{id:store.issueGiftByPhone(d.phone,id(d.typeId),actor)});
    if(p==='/api/admin/revoke'&&method==='POST'){store.revokeGift(id(d.id),actor,d.reason);return json(res,200,{ok:true})}
    if(p==='/api/admin/schedule'&&method==='GET')return json(res,200,{current:store.schedule(),pending:store.schedule(new Date(Date.parse(day()+'T00:00:00Z')+86400000).toISOString().slice(0,10))});
    if(p==='/api/admin/schedule'&&method==='POST')return json(res,200,{effective:store.setSchedule({start:Number(d.start),match:Number(d.match),final:Number(d.final),deadline:Number(d.deadline)},actor)});

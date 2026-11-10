@@ -139,6 +139,7 @@ export class Store {
     return {date,totals,daily,types};
   }
   issueGift(uid,tid,actor){return this.tx(()=>{const t=this.get('SELECT * FROM types WHERE id=?',tid);must(t&&this.user(uid),'用户或类型不存在');const id=Number(this.run('INSERT INTO gifts(user_id,type_id,value,created) VALUES(?,?,?,?)',uid,tid,t.initial,now()).lastInsertRowid);this.audit(actor,'发放礼包',{uid,tid,id});return id})}
+  issueGiftByPhone(phone,tid,actor){must(typeof phone==='string'&&phone.trim().length>0&&phone.length<=64,'请输入用户手机号');const user=this.get("SELECT id FROM users WHERE phone=? AND role='user'",phone.trim());must(user,'用户不存在');return this.issueGift(user.id,tid,actor)}
   revokeGift(id,actor,reason){must(String(reason||'').trim(),'请填写原因');return this.tx(()=>{const g=this.get("SELECT * FROM gifts WHERE id=? AND status='active'",id);must(g&&!g.locked,'礼包不存在或已锁定');this.run("UPDATE gifts SET status='revoked' WHERE id=?",id);this.audit(actor,'收回礼包',{id,reason})})}
   giftsFor(uid){return this.all("SELECT g.*,t.name FROM gifts g JOIN types t ON t.id=g.type_id WHERE g.user_id=? AND g.status='active' ORDER BY g.id DESC",uid)}
   redeem(uid,id){return this.tx(()=>{const g=this.get("SELECT * FROM gifts WHERE id=? AND user_id=? AND status='active'",id,uid);must(g,'礼包不存在');must(!g.locked,'礼包已锁定');must(Number.isSafeInteger(this.user(uid).points+g.value),'积分余额超出上限');this.run("UPDATE gifts SET status='redeemed' WHERE id=?",id);this.run('UPDATE users SET points=points+? WHERE id=?',g.value,uid);this.ledger(uid,g.value,0,`礼包${id}提货`,uid);return g.value})}
