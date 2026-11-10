@@ -83,6 +83,15 @@ test('付款凭证未选图片时提交按钮禁用',async()=>{
  handlers.change({target:{name:'proof',files:[],closest:()=>form}});assert.equal(button.disabled,true);
 });
 
+test('卖方查看转账凭证时在订单右侧展示缩略图',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn},remove:()=>{}};
+ const fixtures={me:{id:1,name:'卖家',phone:'a',points:100,frozen:0},types:[],gifts:[],orders:[{id:7,buyer_id:2,seller_id:1,buyer_name:'买家',type_name:'商品1包',price:500,status:'submitted',has_proof:1}],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320},'proof?id=7':{proof:'data:image/png;base64,cHJvb2Y='}};
+ const context={document:{querySelector:()=>element,createElement:()=>({}),body:{append:()=>{}}},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,setTimeout:()=>0,clearTimeout:()=>{},console,confirm:()=>true};
+ runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{action:'orders'}})}});assert.match(element.innerHTML,/data-action="view-proof"/);
+ await handlers.click({target:{closest:()=>({dataset:{action:'view-proof',id:'7'}})}});assert.match(element.innerHTML,/class="proof-thumb"/);assert.match(element.innerHTML,/data:image\/png;base64,cHJvb2Y=/);
+});
+
 test('登录与注册密码输入框允许六位密码',()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
  const context={document:{querySelector:()=>element},localStorage:{getItem:()=>''},setInterval:()=>0,console};
