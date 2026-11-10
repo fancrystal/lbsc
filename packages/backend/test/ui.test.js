@@ -106,3 +106,13 @@ test('用户端商城打开商品时按需读取并展示详情',async()=>{
  await handlers.click({target:{closest:()=>({dataset:{tab:'商城'}})}});assert.match(element.innerHTML,/测试商品/);
  await handlers.click({target:{closest:()=>({dataset:{action:'product',id:'1'}})}});assert.match(element.innerHTML,/商品详情内容/);
 });
+
+test('商城订单列表和详情在右侧展示商品封面',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn},remove:()=>{}};
+ const fixtures={me:{id:1,name:'测试',phone:'a',points:100,frozen:0},types:[],gifts:[],orders:[],products:[],reservations:[],'shop-orders':[{id:9,name:'蔬菜月卡',price:1000,recipient:'王一',phone:'13800000000',address:'天津市',cover:'/media/products/3'}],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
+ const context={document:{querySelector:()=>element,createElement:()=>({}),body:{append:()=>{}}},localStorage:{getItem:()=> 'test-token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,setTimeout:()=>0,clearTimeout:()=>{},console};
+ runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{tab:'我的'}})}});
+ await handlers.click({target:{closest:()=>({dataset:{action:'shop'}})}});assert.match(element.innerHTML,/class="order-thumb" src="\/media\/products\/3"/);
+ await handlers.click({target:{closest:()=>({dataset:{action:'shop-detail',id:'9'}})}});assert.match(element.innerHTML,/class="order-thumb" src="\/media\/products\/3"/);
+});
