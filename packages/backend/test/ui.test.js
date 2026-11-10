@@ -11,6 +11,14 @@ test('后台礼包类型可填写固定质押额度',async()=>{
  await handlers.click({target:{closest:()=>({dataset:{tab:'礼包类型'}})}});assert.match(element.innerHTML,/预约质押额度（积分）/);assert.match(element.innerHTML,/name="pledge"/);assert.match(element.innerHTML,/固定质押/);
 });
 
+test('后台操作日志以北京时间展示 UTC 记录',async()=>{
+ const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
+ const fixtures={me:{role:'admin'},users:[],types:[],gifts:[],matches:[],products:[],'shop-orders':[],audit:[{id:1,created:'2026-11-10T08:00:06.967Z',actor:'system',action:'随机匹配',detail:'{}'}],schedule:{},dashboard:{}};
+ const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5).replace(/^admin\//,'')]}),alert:message=>{throw Error(message)},console};
+ runInNewContext(readFileSync('web/admin.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
+ await handlers.click({target:{closest:()=>({dataset:{tab:'操作日志'}})}});assert.match(element.innerHTML,/2026-11-10 16:00:06/);assert.doesNotMatch(element.innerHTML,/2026-11-10T08:00:06/);
+});
+
 test('企货销首页、礼包图片和手机号在用户页面展示',async()=>{
  const handlers={},element={innerHTML:'',addEventListener:(name,fn)=>{handlers[name]=fn}};
  const fixtures={me:{id:1,name:'测试',phone:'13800000001',points:100,frozen:0},types:[{id:1,name:'一包',current_value:300,cap:600,rate:'1'}],gifts:[{id:1,name:'一包',value:300,locked:0}],orders:[{id:2,buyer_id:1,seller_id:2,seller_name:'卖家',seller_phone:'13900000002',status:'completed',type_name:'一包'}],products:[],reservations:[],'shop-orders':[],ledger:[],addresses:[],schedule:{start:0,match:960,final:970,deadline:1320}};
