@@ -59,7 +59,7 @@ test('预约页显示当前金额及冻结金额',async()=>{
  const context={document:{querySelector:()=>element},localStorage:{getItem:()=> 'token'},fetch:async url=>({ok:true,json:async()=>fixtures[url.slice(5)]}),setInterval:()=>0,console};
  runInNewContext(readFileSync('web/app.js','utf8'),context);await new Promise(resolve=>setImmediate(resolve));
  await handlers.click({target:{closest:()=>({dataset:{tab:'预约'}})}});
- assert.match(element.innerHTML,/当前金额 450/);assert.doesNotMatch(element.innerHTML,/最\u9ad8/);assert.match(element.innerHTML,/预约冻结 125 积分/);assert.match(element.innerHTML,/data-pledge="125"/);
+ assert.match(element.innerHTML,/下限 300 · 上限 600/);assert.doesNotMatch(element.innerHTML,/当前金额 450/);assert.match(element.innerHTML,/预约冻结 125 积分/);assert.match(element.innerHTML,/data-pledge="125"/);
 });
 
 test('个人页提供积分互转入口和填写手机号的表单',async()=>{
